@@ -1,0 +1,14 @@
+{
+  "name": "askadev",
+  "version": "1.0.0",
+  "description": "Endpoints for the askadev Slack app",
+  "main": "index.js",
+  "scripts": {
+    "start": "node checkPublishing.js"
+  },
+  "author": "Grant Dickie",
+  "license": "ISC",
+  "dependencies": {
+    "request": "^2.81.0"
+  }
+}
