@@ -1,4 +1,5 @@
-var request = require('request');
+var request = require('request'),
+querystring = require('querystring');
 
 const HELP_TEXT = "Hi there! Ask me anything about whether something published or not."
 
@@ -27,6 +28,10 @@ var checkIfThingPublished = (event, callback) =>
             if (body !== null) {
                 // Body should be JSON
                 if (body.list.story && body.list.story.length) {
+                    if (body.list.story[0].id !== event.text) {
+                        noStoryFoundMessage(event, callback);
+                        return;
+                    }
                     var date = body.list.story[0].pubDate.$text,
                         link = null;
                     // Getting story link here
@@ -59,12 +64,12 @@ var noStoryFoundMessage = (json, callback) => {
         method: 'POST',
         json: true,
         body: {
-            "text": "No Story Found!",
+            "text": "No Story Found! This likely means that your story is _not_ published.",
             "attachments": [{
                 "fallback": "Could not find a published story in our API system matching the ID " + json.text,
-                "fields": [{
-                    "Reason": "No story was found in the story API matching " + json.text
-                }]
+                "text": "No story was found in the story API matching " + json.text + ". Check this <http://www.npr.org/xstory/" + json.text + "?live=1|URL> inside " +
+                "the building in order to see if something shows up. If it does, this means the story is saved but not published."
+
             }]
         }
     }, function (err, res, body) {
@@ -77,21 +82,52 @@ var noStoryFoundMessage = (json, callback) => {
 
 var sendBackHelpText = (callback) => {
     try {
-        callback(null, { "text": HELP_TEXT });
+        var response = {
+            "text": "Emergency? If during work hours (9am - 5pm) " +
+            "please contact <" + process.env.onlinetechEmail + "|onlinetech>. " +
+            "Off hours? Then call the number below after reading the instructions.",
+            attachments: [{
+                "text": "Please only use in an off-hours emergency: \n" +
+                "• Seamus is down or unreachable \n " +
+                "• You can't publish / update breaking news or a story that, if not updated, negatively impacts the mission of NPR \n " +
+                "• The web site is completely unreachable \n " +
+                "• The home page is blank or missing content. \n\n (Refer to " +
+                "<http://confluence.npr.org/display/OPS/Digital+Media+Support|this guide in Confluence> for more details on what constitutes an emergency.)",
+                "fields": [{
+                    "title": "Emergency Dev Hotline",
+                    "value": process.env.emergencyNumber
+                }]
+            }]
+        };
+
+        request({
+            url: process.env.webhookUrl,
+            body: response,
+            json: true,
+            method: 'POST'
+        }, function(err, res, body) {
+            if (err) {
+                callback(null, {"text": err.message});
+            }
+            callback(null);
+        });
     } catch (err) {
         console.log(err);
         callback(null, { "text": err.message });
     }
 }
 
-var getItemsFromMessyBody = (body, callback) =
->
+var getItemsFromMessyBody = (body, callback) =>
 {
     try {
         var token = body.match(/token=([A-z0-9]+)&/)[1],
             command = body.match(/command=%2F([A-z]+)&/)[1],
-            text = body.match(/text=([0-9]+)&/)[1],
+            text = body.match(/text=([0-9]+)&/),
             responseUrl = body.match(/response_url=([A-z0-9.%]+)/)[1].replace(/%2F/g, '/').replace(/%3A/g, ':');
+
+            if (text !== null && text[1] !== null) {
+                text = text[1];
+            }
         callback(null, {
             token: token,
             command: command,
@@ -104,8 +140,7 @@ var getItemsFromMessyBody = (body, callback) =
     }
 }
 
-var formatForSlack = (results, responseUrl, callback) =
->
+var formatForSlack = (results, responseUrl, callback) =>
 {
     try {
         var formattedText = {
