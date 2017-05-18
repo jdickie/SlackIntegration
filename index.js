@@ -1,8 +1,6 @@
 var request = require('request'),
 querystring = require('querystring');
 
-const HELP_TEXT = "Hi there! Ask me anything about whether something published or not."
-
 var checkIfThingPublished = (event, callback) =>
 {
     try {
